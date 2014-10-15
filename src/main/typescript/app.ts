@@ -2,6 +2,8 @@
 /// <reference path="controllers/IndexController.ts"/>
 
 module app {
+    'use strict';
+
     /**
      * @ngInject
      */
@@ -13,7 +15,6 @@ module app {
         }).otherwise({
             redirectTo: '/'
         });
-
     }
 
     angular.module('myApp', [

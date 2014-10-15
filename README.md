@@ -16,7 +16,7 @@ CSS は [Compass](http://compass-style.org/) を用いて処理します。
 
 [Node.js](http://nodejs.org/) をインストールして npm が使える状態にしてください。
 
-ビルドシステムに [gulp](http://gulpjs.com/) を使用しますのでインストールしてください（当然事前に Node + npm も）。
+ビルドシステムに [gulp](http://gulpjs.com/) を使用しますのでインストールしてください。
 
     npm install -g gulp
 
@@ -59,7 +59,7 @@ CSS は [Compass](http://compass-style.org/) を用いて処理します。
 
     gulp build
 
-以下のコマンドでプロダクトパッケージ実際に使用した動作確認を行うためのステージングサーバ起動します。
+以下のコマンドでプロダクトパッケージ実際に使用した動作確認を行うためのステージングサーバを起動します。
 開発サーバ同様 [http://localhost:8000](http://localhost:8000) で動作確認ができます。
 
     gulp stage

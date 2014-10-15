@@ -32,12 +32,11 @@ var ejsAngularViews = path.join(ejsMain, 'views/**/*.ejs'); // AngularJS 用ビ�
 var scssMain = path.join(srcMain, 'scss');                  // SCSS メイン
 var scssMainFiles = path.join(scssMain, '**/*.scss');       // SCSS ファイル群
 var outBase = 'target';                                     // 出力先ベース
+var streams = path.join(outBase, 'streams');                // 処理途中置き場
 var distOut = path.join(outBase, 'dist');                   // 出荷用ベース
 var mainOut = path.join(outBase, 'main');                   // メイン出力ベース
-var tmpOut  = path.join(outBase, 'tmp');                    // テンポラリ出力ベース
 
 var jsMainOut = path.join(mainOut, 'scripts');              // JavaScript 出力ベース
-var jsTmpOut  = path.join(tmpOut, 'scripts');               // JavaScript テンポラリ出力ベース
 var angularViews = path.join(mainOut, 'views/**/*.html');   // AngularJS 用ビュー
 
 
@@ -108,7 +107,9 @@ gulp.task('tsd:reinstall', function (callback) {
      * デプロイ用資源の確認用サーバのミドルウェア
      */
     var prodMiddleware = function () {
-        return [reverseProxy()];
+        return [
+            reverseProxy()
+        ];
     };
 
     /*
@@ -197,55 +198,52 @@ function htmlmin() {
 }
 
 /*
- * TypeScript コンパイルの設定
+ * タスク copy:tsc : TypeScript ソースを処理途中置き場に置く
  */
-(function () {
-    function tscOption() {
-        return {
+gulp.task('copy:tsc', function () {
+    return gulp.src([tsMainFiles])
+        .pipe(gulp.dest(path.join(streams, 'altjs-compiled')));
+});
+
+/*
+ * タスク tsc : TypeScript コンパイルを行う
+ */
+gulp.task('tsc', ['copy:tsc'], function () {
+    return gulp.src([path.join(streams, 'altjs-compiled/**/*.ts')])
+        .pipe($.plumber())
+        .pipe($.tsc({
             out: 'app.js',
             target: 'ES5',
             noImplicitAny: true,
             sourcemap: true,
             sourceRoot: './',
-            mapRoot: '../../../scripts'
-        };
-    }
+            mapRoot: ''
+        }))
+        .pipe(gulp.dest(path.join(streams, 'altjs-compiled')));
+});
 
-    /*
-     * タスク tsc : TypeScript コンパイルを行う
-     */
-    gulp.task('tsc', function () {
-        return gulp.src([tsMainFiles])
-            .pipe($.plumber())
-            .pipe($.tsc(tscOption()))
-            .pipe(gulp.dest(jsTmpOut));
-    });
-
-    /*
-     * タスク tsc:prod : TypeScript コンパイルを行う。minify 対策のため ngInject の処理も行う。
-     */
-    gulp.task('tsc:prod', function () {
-        var opt = tscOption();
-        opt.sourcemap = false;
-        return gulp.src([tsMainFiles])
-            .pipe($.plumber())
-            .pipe($.tsc(opt))
-            .pipe($.ngAnnotate())
-            .pipe(gulp.dest(jsMainOut));
-    });
-})();
-
+/*
+ * タスク ngAnnotate : ng-annotate を適用する
+ */
 gulp.task('ngAnnotate', ['tsc'], function () {
-    return gulp.src([path.join(jsTmpOut, '**/*.js')])
+    return gulp.src([path.join(streams, 'altjs-compiled/**/*.js')])
         .pipe($.plumber())
-        .pipe($.sourcemaps.init({loadMaps:true}))
+        .pipe($.sourcemaps.init({loadMaps: true}))
         .pipe($.ngAnnotate({
             sourcemap: true,
             sourceroot: './',
             remove: true,
             add: true
         }))
-        .pipe($.sourcemaps.write('./'))
+        .pipe($.sourcemaps.write())
+        .pipe(gulp.dest(path.join(streams, 'ngAnnotate')));
+});
+
+/*
+ * タスク deploy:dev : 処理済みスクリプトを開発サーバで確認できるようにデプロイする
+ */
+gulp.task('deploy:dev', ['ngAnnotate'], function () {
+    return gulp.src([path.join(streams, 'ngAnnotate/**/*.js')])
         .pipe(gulp.dest(jsMainOut))
         .pipe($.connect.reload());
 });
@@ -260,7 +258,7 @@ gulp.task('ngTemplate', ['ejs:views'], function () {
             root: 'views/',
             module: moduleName
         }))
-        .pipe(gulp.dest(jsMainOut));
+        .pipe(gulp.dest(path.join(streams, 'ngTemplate')));
 });
 
 /*
@@ -308,9 +306,9 @@ gulp.task('watch', function () {
         gulp.src([path.join(staticContents, '**/*')])
             .pipe($.connect.reload())
     });
-    gulp.watch([tsMainFiles], ['ngAnnotate']);
+    gulp.watch([tsMainFiles], ['deploy:dev']);
     gulp.watch([ejsMainFiles], ['ejs']);
-    gulp.watch([scssMainFiles], ['compass'])
+    gulp.watch([scssMainFiles], ['compass']);
 });
 
 /*
@@ -319,23 +317,54 @@ gulp.task('watch', function () {
 gulp.task('serve', function (callback) {
     runSequence(
         'clean',
-        ['ejs', 'ngAnnotate', 'compass'],
+        ['ejs', 'deploy:dev', 'compass'],
         'watch',
         'connect',
         callback
-    )
+    );
+});
+
+/*
+ * タスク concat : スクリプトを連結する
+ */
+gulp.task('concat', ['ngAnnotate', 'ngTemplate'], function () {
+    return gulp.src([path.join(streams, 'ngAnnotate/**/*.js'), path.join(streams, 'ngTemplate/**/*.js')])
+        .pipe($.sourcemaps.init({loadMaps: true}))
+        .pipe($.concat('app.js'))
+        .pipe($.sourcemaps.write())
+        .pipe(gulp.dest(path.join(streams, 'concat')));
+});
+
+/*
+ * タスク uglify : スクリプトを難読化、圧縮する
+ */
+gulp.task('uglify', ['concat'], function () {
+    return gulp.src([path.join(streams, 'concat/**/*.js')])
+        .pipe($.sourcemaps.init({loadMaps: true}))
+        .pipe($.uglify())
+        .pipe($.sourcemaps.write('./'))
+        .pipe(gulp.dest(path.join(streams, 'uglify/scripts')));
+});
+
+/*
+ * タスク deploy:prod : 処理済みスクリプトを出荷用フォルダにコピーする
+ */
+gulp.task('deploy:prod', ['uglify'], function () {
+    return gulp.src([path.join(streams, 'uglify/scripts/**/*.map')])
+        .pipe(gulp.dest(path.join(distOut, 'scripts')))
 });
 
 /*
  * タスク usemin : 出荷用に HTML から参照している CSS や JavaScript をまとめて HTML も Minify する
  */
-gulp.task('usemin', ['ejs:prod', 'tsc:prod', 'compass', 'ngTemplate'], function () {
+gulp.task('usemin', ['ejs:prod', 'deploy:prod', 'compass', 'ngTemplate'], function () {
     return gulp.src([path.join(staticContents, '**/*.html'), path.join(mainOut, '**/*.html'), '!' + angularViews])
         .on('error', $.util.log)
         .pipe($.usemin({
             css: [$.minifyCss(), $.rev()],
             html: [htmlmin()],
-            js: [$.uglify(), $.rev()]
+            js: [$.uglify(), $.rev()],
+            js2: [$.rev()]
         }))
         .pipe(gulp.dest(distOut));
 });
@@ -346,8 +375,7 @@ gulp.task('usemin', ['ejs:prod', 'tsc:prod', 'compass', 'ngTemplate'], function 
 gulp.task('copy', function () {
     gulp.src([
         path.join(staticContents, '**/*'),
-        '!' + path.join(staticContents, '**/*.html'),
-        '!' + path.join(staticContents, 'dist/**/*')])
+        '!' + path.join(staticContents, '**/*.html')])
         .pipe(gulp.dest(distOut));
 
     gulp.src('bower_components/**/*')

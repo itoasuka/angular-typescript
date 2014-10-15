@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/tsd.d.ts"/>
 /// <reference path="controllers/IndexController.ts"/>
 
-(function () {
+module app {
     /**
      * @ngInject
      */
@@ -15,7 +15,6 @@
         });
 
     }
-    console.log('start app!');
 
     angular.module('myApp', [
         'ngRoute'
@@ -23,4 +22,4 @@
         .config(config)
         .controller('IndexController', IndexController);
 
-})();
+}

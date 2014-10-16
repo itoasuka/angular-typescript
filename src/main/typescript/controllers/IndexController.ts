@@ -1,16 +1,12 @@
 /// <reference path="../../../../typings/tsd.d.ts"/>
 
-module app {
-    'use strict';
+class IndexController {
+    greeting:string;
 
-    export class IndexController {
-        greeting:string;
-
-        /**
-         * @ngInject
-         */
-        constructor() {
-            this.greeting = 'Hello, world!'
-        }
+    /**
+     * @ngInject
+     */
+    constructor() {
+        this.greeting = 'Hello, world!';
     }
 }

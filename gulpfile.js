@@ -31,6 +31,7 @@ var ejsMainIncludes = path.join(ejsMain, '**/_*.ejs');      // EJS インクル�
 var ejsAngularViews = path.join(ejsMain, 'views/**/*.ejs'); // AngularJS 用ビューのEJS
 var scssMain = path.join(srcMain, 'scss');                  // SCSS メイン
 var scssMainFiles = path.join(scssMain, '**/*.scss');       // SCSS ファイル群
+var miscMain = path.join(srcMain, 'misc');                  // その他ファイル
 var outBase = 'target';                                     // 出力先ベース
 var streams = path.join(outBase, 'streams');                // 処理途中置き場
 var distOut = path.join(outBase, 'dist');                   // 出荷用ベース
@@ -242,8 +243,8 @@ gulp.task('ngAnnotate', ['tsc'], function () {
 /*
  * タスク deploy:dev : 処理済みスクリプトを開発サーバで確認できるようにデプロイする
  */
-gulp.task('deploy:dev', ['ngAnnotate'], function () {
-    return gulp.src([path.join(streams, 'ngAnnotate/**/*.js')])
+gulp.task('deploy:dev', ['concat'], function () {
+    return gulp.src([path.join(streams, 'concat/**/*.js')])
         .pipe(gulp.dest(jsMainOut))
         .pipe($.connect.reload());
 });
@@ -327,8 +328,28 @@ gulp.task('serve', function (callback) {
 /*
  * タスク concat : スクリプトを連結する
  */
-gulp.task('concat', ['ngAnnotate', 'ngTemplate'], function () {
-    return gulp.src([path.join(streams, 'ngAnnotate/**/*.js'), path.join(streams, 'ngTemplate/**/*.js')])
+gulp.task('concat', ['ngAnnotate'], function () {
+    return gulp.src([
+        path.join(miscMain, 'app.prefix'),
+        path.join(streams, 'ngAnnotate/**/*.js'),
+        path.join(miscMain, 'app.suffix')
+    ])
+        .pipe($.sourcemaps.init({loadMaps: true}))
+        .pipe($.concat('app.js'))
+        .pipe($.sourcemaps.write())
+        .pipe(gulp.dest(path.join(streams, 'concat')));
+});
+
+/*
+ * タスク concat:prod : スクリプトを連結する
+ */
+gulp.task('concat:prod', ['ngAnnotate', 'ngTemplate'], function () {
+    return gulp.src([
+        path.join(miscMain, 'app.prefix'),
+        path.join(streams, 'ngAnnotate/**/*.js'),
+        path.join(streams, 'ngTemplate/**/*.js'),
+        path.join(miscMain, 'app.suffix')
+    ])
         .pipe($.sourcemaps.init({loadMaps: true}))
         .pipe($.concat('app.js'))
         .pipe($.sourcemaps.write())
@@ -338,7 +359,7 @@ gulp.task('concat', ['ngAnnotate', 'ngTemplate'], function () {
 /*
  * タスク uglify : スクリプトを難読化、圧縮する
  */
-gulp.task('uglify', ['concat'], function () {
+gulp.task('uglify', ['concat:prod'], function () {
     return gulp.src([path.join(streams, 'concat/**/*.js')])
         .pipe($.sourcemaps.init({loadMaps: true}))
         .pipe($.uglify())

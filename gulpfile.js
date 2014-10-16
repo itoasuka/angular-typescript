@@ -194,7 +194,8 @@ function htmlmin() {
         collapseBooleanAttributes: true,
         removeComments: true,
         removeCommentsFromCDATA: true,
-        removeOptionalTags: true
+        removeOptionalTags: true,
+        minifyJS: true
     });
 }
 
